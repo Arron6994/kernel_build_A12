@@ -1,0 +1,232 @@
+# Build outputs
+out/
+dist/
+*.zip
+*.img
+*.dtb
+*.dtbo
+
+# Kernel source and build artifacts
+kernel/
+toolchain/
+AnyKernel3/
+*.log
+*.o
+*.ko
+*.mod
+*.mod.c
+*.symvers
+*.order
+modules.builtin
+.tmp_versions/
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+.ccache/
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# System files
+Thumbs.db
+.DS_Store
+Desktop.ini
+
+# Archives
+*.tar.gz
+*.tgz
+*.tar.bz2
+*.tar.xz
+*.7z
+*.rar
+
+# Configuration overrides (keep examples)
+configs/*_local.conf
+configs/*_private.conf
+
+# Logs
+*.log
+logs/
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# Test files
+test_*.sh
+debug_*.sh
+
+# Local development
+local/
+private/
+secret/
+
+# IDE
+.project
+.classpath
+.settings/
+
+# Patch files
+*.patch
+*.diff
+
+# Kernel specific
+.config
+.config.old
+include/config/
+include/generated/
+arch/*/include/generated/
+scripts/basic/fixdep
+scripts/basic/bin2c
+scripts/conmakehash
+scripts/kallsyms
+scripts/pnmtologo
+scripts/mod/mk_elfconfig
+scripts/mod/modpost
+scripts/mod/sumversion
+scripts/genksyms/genksyms
+scripts/genksyms/keywords.hash.c
+scripts/genksyms/lex.lex.c
+scripts/genksyms/parse.tab.c
+scripts/genksyms/parse.tab.h
+scripts/kconfig/conf
+scripts/kconfig/mconf
+scripts/recordmcount
+scripts/sortextable
+scripts/dtc/dtc
+scripts/dtc/dtc-lexer.lex.c
+scripts/dtc/dtc-parser.tab.c
+scripts/dtc/dtc-parser.tab.h
+
+# Android specific
+android.mk
+Android.bp
+
+# Custom markers
+.kernelsu_applied
+.susfs_applied
+.toolchain_setup
+.kernel_setup
+
+# Documentation build
+docs/_build/
+docs/_static/
+docs/_templates/
+
+# Coverage reports
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+.hypothesis/
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Runtime
+*.pid
+*.sock
+
+# Database
+*.db
+*.sqlite3
+
+# Media files
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.mp4
+*.mp3
+
+# Compressed files
+*.gz
+*.bz2
+*.xz
+*.lz4
+*.zst
+
+# Security
+*.key
+*.pem
+*.crt
+*.p12
+*.pfx
+keys/
+certs/
+secrets/
+
+# Performance logs
+perf.data*
+gmon.out
+
+# Emacs
+\#*\#
+.\#*
+
+# Vim
+[._]*.s[a-v][a-z]
+[._]*.sw[a-p]
+[._]s[a-rt-v][a-z]
+[._]ss[a-gi-z]
+[._]sw[a-p]
+
+# IntelliJ
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# Visual Studio Code
+.vscode/
+*.code-workspace
+
+# JetBrains
+.idea/
+
+# Generated documentation
+doc/html/
+doc/latex/
+doc/man/
