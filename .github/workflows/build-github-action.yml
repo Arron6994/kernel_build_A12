@@ -1,173 +1,131 @@
-name: Android 12 Kernel Build (KernelSU-Next + AnyKernel3)
+name: Build Zeus Kernel with KernelSU and SusFS
+
+on:
+  push:
+    branches: [ main, copilot/* ]
+    paths-ignore:
+      - 'README.md'
+      - 'docs/**'
+  pull_request:
+    branches: [ main ]
+    paths-ignore:
+      - 'README.md'
+      - 'docs/**'
+  workflow_dispatch:
+    inputs:
+      enable_kernelsu:
+        description: 'Enable KernelSU'
+        required: false
+        default: 'true'
+        type: boolean
+      enable_susfs:
+        description: 'Enable SusFS'
+        required: false
+        default: 'true'
+        type: boolean
 
 env:
-  KERNEL_VERSION: 5.10         # Corrected version to match workflow name
-  ANDROID_VERSION: 12
-  DEVICE_NAME: zeus
-  CCACHE_VERSION: 4.8.1
-  CLANG_VERSION: r416183b
-  DEFCONFIG: zeus_defconfig
+  KERNEL_REPO: "https://github.com/MiCode/Xiaomi_Kernel_OpenSource"
+  KERNEL_BRANCH: "zeus-s-oss"
+  DEVICE_NAME: "zeus"
+  ANDROID_VERSION: "12"
 
 jobs:
   build:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        shell: bash
-
+    runs-on: ubuntu-22.04
+    
     steps:
-      - name: Checkout kernel source
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          path: kernel-source
-
-      - name: Checkout KernelSU-Next
-        uses: actions/checkout@v4
-        with:
-          repository: tiann/KernelSU
-          ref: main
-          path: kernelsu-source
-
-      - name: Checkout AnyKernel3
-        uses: actions/checkout@v4
-        with:
-          repository: osm0sis/AnyKernel3
-          ref: master
-          path: anykernel3
-
-      - name: Install required packages
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            bc bison build-essential ccache curl flex \
-            g++-multilib gcc-multilib git gnupg gperf imagemagick \
-            lib32ncurses5-dev lib32readline-dev lib32z1-dev libelf-dev \
-            liblz4-tool libncurses5-dev libsdl1.2-dev libssl-dev libxml2 \
-            libxml2-utils lzop pngcrush rsync schedtool squashfs-tools xsltproc \
-            zip zlib1g-dev python-is-python3
-
-      - name: Setup ccache
-        uses: hendrikmuhs/ccache-action@v1.2
-        with:
-          key: ${{ runner.os }}-ccache-${{ github.sha }}
-          restore-keys: ${{ runner.os }}-ccache-
-
-      - name: Download Clang Toolchain
-        run: |
-          mkdir -p toolchains/clang
-          cd toolchains/clang
-          wget -q https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/android12-release/clang-${{ env.CLANG_VERSION }}.tar.gz
-          tar -xzf clang-${{ env.CLANG_VERSION }}.tar.gz
-          rm clang-${{ env.CLANG_VERSION }}.tar.gz
-
-      - name: Download GCC Toolchains
-        run: |
-          mkdir -p toolchains/gcc/aarch64 toolchains/gcc/arm
-          # ARM64
-          cd toolchains/gcc/aarch64
-          wget -q https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/+archive/refs/heads/android12-release.tar.gz -O gcc-arm64.tar.gz
-          tar -xzf gcc-arm64.tar.gz
-          rm gcc-arm64.tar.gz
-          cd ../../arm
-          # ARM32
-          wget -q https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9/+archive/refs/heads/android12-release.tar.gz -O gcc-arm.tar.gz
-          tar -xzf gcc-arm.tar.gz
-          rm gcc-arm.tar.gz
-          cd ../../../
-
-      - name: Integrate KernelSU
-        run: |
-          cd kernel-source
-          curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -
-
-      - name: Prepare Kernel Configuration
-        run: |
-          cd kernel-source
-          DEFCONFIG_PATH="arch/arm64/configs/${DEFCONFIG}"
-          if [[ ! -f "$DEFCONFIG_PATH" ]]; then
-            echo "Defconfig $DEFCONFIG not found, using available defconfig."
-            DEFCONFIG=$(ls arch/arm64/configs/ | grep defconfig | head -1)
-            echo "Using $DEFCONFIG instead"
-          fi
-          make O=out ARCH=arm64 $DEFCONFIG
-          scripts/config --file out/.config -e CONFIG_KSU
-
-      - name: Build Kernel
-        run: |
-          export ARCH=arm64
-          export SUBARCH=arm64
-          export CLANG_PATH="$GITHUB_WORKSPACE/toolchains/clang"
-          export PATH="$CLANG_PATH/bin:$PATH"
-          export CLANG_TRIPLE=aarch64-linux-gnu-
-          export CROSS_COMPILE="$GITHUB_WORKSPACE/toolchains/gcc/aarch64/bin/aarch64-linux-android-"
-          export CROSS_COMPILE_ARM32="$GITHUB_WORKSPACE/toolchains/gcc/arm/bin/arm-linux-androideabi-"
-          export KBUILD_BUILD_USER=Arron6994
-          export KBUILD_BUILD_HOST=GitHub-Actions
-          export USE_CCACHE=1
-          export CCACHE_EXEC=$(which ccache)
-          cd kernel-source
-          make -j$(nproc) O=out \
-            ARCH=arm64 \
-            CC=clang \
-            CLANG_TRIPLE=aarch64-linux-gnu- \
-            CROSS_COMPILE=aarch64-linux-android- \
-            CROSS_COMPILE_ARM32=arm-linux-androideabi- \
-            2>&1 | tee build.log
-          if [[ ! -f out/arch/arm64/boot/Image.gz ]]; then
-            echo "Kernel build failed!"
-            exit 1
-          fi
-
-      - name: Package with AnyKernel3
-        run: |
-          cd anykernel3
-          rm -rf .git README.md
-          # Overwrite anykernel.sh with required configuration
-          cat > anykernel.sh <<EOF
-          # AnyKernel3 Ramdisk Mod Script
-          # osm0sis @ xda-developers
-          ## AnyKernel setup
-          properties() {
-              kernel.string=KernelSU-${DEVICE_NAME} ${KERNEL_VERSION}
-              do.devicecheck=1
-              do.modules=0
-              do.systemless=1
-              do.cleanup=1
-              do.cleanuponabort=0
-              device.name1=${DEVICE_NAME}
-              supported.versions=${ANDROID_VERSION}
-          }
-          ## AnyKernel install
-          attributes() {
-              set_perm_recursive 0 0 755 644 \$ramdisk/*;
-              set_perm_recursive 0 0 750 750 \$ramdisk/init* \$ramdisk/sbin;
-          }
-          dump_boot;
-          # Begin ramdisk changes
-          if [ -d \$ramdisk/overlay ]; then
-              mkdir -p \$ramdisk/overlay.d 2>/dev/null;
-              for file in \$(find \$ramdisk/overlay -type f 2>/dev/null); do
-                  cp -fp \$file \$ramdisk/overlay.d/\$(basename \$file) 2>/dev/null;
-              done;
-          fi;
-          # end ramdisk changes
-          write_boot;
-          ## end install
-          EOF
-          cp ../kernel-source/out/arch/arm64/boot/Image.gz ./
-          for img in dtbo.img dtb.img; do
-            if [[ -f ../kernel-source/out/arch/arm64/boot/$img ]]; then
-              cp ../kernel-source/out/arch/arm64/boot/$img ./
-            fi
-          done
-          zip -r9 ../KernelSU-${DEVICE_NAME}-${KERNEL_VERSION}.zip * -x .git README.md *placeholder
-
-      - name: Upload Build Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: KernelSU-${{ env.DEVICE_NAME }}-${{ env.KERNEL_VERSION }}
-          path: |
-            KernelSU-${{ env.DEVICE_NAME }}-${{ env.KERNEL_VERSION }}.zip
-            kernel-source/out/arch/arm64/boot/Image.gz
-            kernel-source/build.log
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 1
+        
+    - name: Setup build environment
+      run: |
+        sudo apt update
+        sudo apt install -y \
+          build-essential \
+          git \
+          curl \
+          wget \
+          zip \
+          unzip \
+          python3 \
+          python3-pip \
+          bc \
+          bison \
+          flex \
+          libssl-dev \
+          libelf-dev \
+          cpio \
+          ccache
+          
+    - name: Setup ccache
+      uses: hendrikmuhs/ccache-action@v1.2
+      with:
+        key: zeus-kernel-build
+        max-size: 10G
+        
+    - name: Make scripts executable
+      run: |
+        chmod +x build.sh
+        chmod +x scripts/setup.sh
+        
+    - name: Setup kernel source
+      run: |
+        echo "Cloning kernel source..."
+        if [ ! -d "kernel" ]; then
+          git clone --depth=1 -b ${{ env.KERNEL_BRANCH }} ${{ env.KERNEL_REPO }} kernel
+        fi
+        
+    - name: Setup toolchain
+      run: |
+        echo "Setting up toolchain..."
+        mkdir -p toolchain
+        
+        if [ ! -d "toolchain/clang" ]; then
+          cd toolchain
+          git clone --depth=1 https://github.com/crdroidandroid/android_prebuilts_clang_host_linux-x86_clang-r450784d clang
+          cd ..
+        fi
+        
+        if [ ! -d "toolchain/gcc" ]; then
+          cd toolchain  
+          git clone --depth=1 https://github.com/LineageOS/android_prebuilts_gcc_linux-x86_aarch64_aarch64-linux-android-4.9 gcc
+          cd ..
+        fi
+        
+    - name: Setup KernelSU
+      if: ${{ github.event.inputs.enable_kernelsu != 'false' }}
+      run: |
+        echo "Setting up KernelSU-Next..."
+        if [ ! -d "kernel/KernelSU" ]; then
+          cd kernel
+          git clone --depth=1 -b next https://github.com/rifsxd/KernelSU-Next KernelSU
+          cd ..
+        fi
+        
+    - name: Setup SusFS
+      if: ${{ github.event.inputs.enable_susfs != 'false' }}
+      run: |
+        echo "Setting up SusFS..."
+        if [ ! -d "kernel/SusFS" ]; then
+          cd kernel
+          git clone --depth=1 https://github.com/sidex15/SusFS4KernelSU SusFS
+          cd ..
+        fi
+        
+    - name: Run build setup
+      run: |
+        ./build.sh --setup-only
+        
+    - name: Upload build artifacts
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: zeus-kernel-build-${{ github.run_number }}
+        path: |
+          out/*.zip
+          out/build.log
+          out/arch/arm64/boot/Image.gz
+        retention-days: 30
