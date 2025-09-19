@@ -1,0 +1,127 @@
+name: Android 12 5.10 Kernel + KernelSU-Next + AnyKernel3 Build
+
+env:
+  # Variabler som används i workflow
+  KERNEL_VERSION: 5.10
+  ANDROID_VERSION: 12
+  DEVICE_NAME: zeus
+  CCACHE_VERSION: "4.8.1"
+  CLANG_VERSION: "r536225b"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      # --------------------------- STORING ---------------------------
+      - name: Checkout kernel source
+        uses: actions/checkout@v4
+        with:
+          repository: Arron6994/kernel_build_A12 # Byt ut detta till ditt aktuella kernel-repo
+          ref: main # Byt ut detta till den korrekta branch eller commit
+          path: kernel-source/
+          submodules: recursive # Om kärnan använder submoduler
+
+      - name: Checkout KernelSU-Next (eller din variant)
+        uses: actions/checkout@v4
+        with:
+          repository: KernelSU-Next/KernelSU-Next
+          path: kernelsu-source/
+
+      - name: Checkout AnyKernel3
+        uses: actions/checkout@v4
+        with:
+          repository: osm0sis/AnyKernel3
+          path: anykernel3/
+
+      # --------------------------- SETTING UP ENVIRONMENT ---------------------------
+      - name: Install tools
+        run: |
+          # Installera nödvändiga paket
+          sudo apt update
+          sudo apt install -y wget bc flex bison libelf-dev lzop build-essential rsync ccache
+
+      - name: Setup ccache directory
+        run: |
+          # Sätt upp ccache för snabbare byggjobb
+          mkdir -p ~/.ccache
+          echo "CCACHE_DIR = ~/.ccache" >> ~/.ccache/ccache.conf
+          echo "MAX_SIZE = 10G" >> ~/.ccache/ccache.conf
+          echo "COMPRESSION = 1" >> ~/.ccache/ccache.conf
+
+      - name: Setup Clang
+        run: |
+          # Ladda ner och installera clang-r536225b
+          cd ~
+          git clone https://github.com/clang-llvm/clang --branch ${CLANG_VERSION} --depth=1
+          cd clang
+          # Kör konfiguration eller installation om det behövs
+          # Detta är exempel. Det exakta kommandot kan variera beroende på hur clang-paketet levereras
+          # Exempel på ett vanligt sätt att installera clang från repo:
+          # sudo apt install clang
+
+          # Alternativt: Ladda ner prebuilt clang (om tillgängligt från en specifik källa)
+          # wget https://github.com/clang-llvm/clang/releases/download/r536225b/clang-r536225b.tar.gz
+          # tar xzf clang-r536225b.tar.gz
+          # export PATH="$PWD/clang-r536225b/bin:$PATH"
+
+      # -------------------------- MODIFICATION & PREPARATION --------------------------
+      - name: Patch Kernel Source with KernelSU
+        run: |
+          # Kopiera KernelSU-modul till kärnan (förutsatt att kärnan är konfigurerad att ta emot det via drivers/misc/)
+          # T.ex. if there's a Makefile in kernel-source/drivers/misc/kernelsu/
+          # Kör möjliga patchkommandon här om det inte är i drivers/misc/ och/eller ej automatiskt inkluderat
+          echo "Checking for KernelSU source..."
+          ls -la kernelsu-source/
+
+          mkdir -p kernel-source/drivers/misc/
+          cp -r kernelsu-source/. kernel-source/drivers/misc/kernel-su/
+
+      - name: Prep Kernel Config
+        run: |
+          # Angivande korrekt defconfig för zeus
+          cd kernel-source
+          # Ersätt <defconfig_for_zeus> med den faktiska konfigurationsfilens namn (ex: zeus_defconfig eller msm_defconfig)
+          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- <defconfig_for_zeus>
+
+      # -------------------------- BUILDING STEP --------------------------
+      - name: Build Kernel
+        run: |
+          cd kernel-source
+          # Exportera cache- och clang-inställningar
+          export USE_CCACHE=1
+          export CCACHE_SLOPPINESS=time_macros
+          export CCACHE_NOHASHDIR=1
+          export CCACHE_BASEDIR=${PWD}
+          export CCACHE_TIMESTAMP=0
+          export CCACHE_CACHE_DIR=~/.ccache
+          export PATH="~/clang-r536225b/bin:$PATH" # Justera sökvägen om nödvändigt
+
+          # Kör buildkommando med clang och ccache
+          make ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- \
+               LLVM=1 \
+               LLVM_IAS=1 \
+               HOSTCC=gcc \
+               CC=clang \
+               -j$(nproc)
+
+      # -------------------------- PACKAGE --------------------------
+      - name: Package with AnyKernel3
+        run: |
+          # Kopiera nödvändiga filer till AnyKernel3 mapp
+          cp kernel-source/arch/arm64/boot/Image.gz-dtb anykernel3/kernel Image.gz-dtb
+          cd anykernel3
+
+          # Redigera config.txt om det gäller (kan behövas för din enhet)
+          echo "device=zeus" > config.txt # Om config.txt är en fil som kräver detta
+
+          # Kör zip-kommandot (kanske är `zip -r9 ../MyKernel.zip .`)
+          zip -r9 ../$(echo ${GITHUB_REPOSITORY##*/})-${DEVICE_NAME}-${KERNEL_VERSION}.zip . # Skapar zip-fil med namn baserat på repo-name, enhet, etc.
+
+      # -------------------------- UPLOAD ARTIFACTS --------------------------
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.DEVICE_NAME }}-${{ env.KERNEL_VERSION }}-build
+          path: |
+            *.zip
+            kernel-source/arch/arm64/boot/Image.gz-dtb # Optional
