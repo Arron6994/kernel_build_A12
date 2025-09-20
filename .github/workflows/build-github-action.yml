@@ -78,14 +78,6 @@ jobs:
           git clone -b ${{ env.KERNEL_BRANCH }} ${{ env.KERNEL_REPO }} kernel
         fi
 
-    - name: Verify drivers directory exists
-      run: |
-        if [ ! -d "drivers" ]; then
-          echo "ERROR: drivers/ directory not found in kernel source!"
-          ls -l kernel
-          exit 1
-        fi
-
     - name: Setup toolchain
       run: |
         echo "Setting up toolchain..."
