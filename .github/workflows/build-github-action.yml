@@ -38,7 +38,7 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
       with:
-        fetch-depth: 1
+        fetch-depth: 0
         
     - name: Setup build environment
       run: |
@@ -66,17 +66,20 @@ jobs:
         key: zeus-kernel-build
         max-size: 10G
         
+    - name: Verify drivers directory exists
+      run: |
+        if [ ! -d "drivers" ]; then
+          echo "Error: drivers directory not found at repository root."
+          echo "Repository structure:"
+          ls -la
+          exit 1
+        fi
+        echo "✓ drivers directory verified"
+        
     - name: Make scripts executable
       run: |
         chmod +x build.sh
         chmod +x scripts/setup.sh
-        
-    - name: Setup kernel source
-      run: |
-        echo "Cloning kernel source..."
-        if [ ! -d "kernel" ]; then
-          git clone --depth=1 -b ${{ env.KERNEL_BRANCH }} ${{ env.KERNEL_REPO }} kernel
-        fi
         
     - name: Setup toolchain
       run: |
@@ -99,20 +102,16 @@ jobs:
       if: ${{ github.event.inputs.enable_kernelsu != 'false' }}
       run: |
         echo "Setting up KernelSU-Next..."
-        if [ ! -d "kernel/KernelSU" ]; then
-          cd kernel
+        if [ ! -d "KernelSU" ]; then
           git clone --depth=1 -b next https://github.com/rifsxd/KernelSU-Next KernelSU
-          cd ..
         fi
         
     - name: Setup SusFS
       if: ${{ github.event.inputs.enable_susfs != 'false' }}
       run: |
         echo "Setting up SusFS..."
-        if [ ! -d "kernel/SusFS" ]; then
-          cd kernel
+        if [ ! -d "SusFS" ]; then
           git clone --depth=1 https://github.com/sidex15/susfs4ksu-module SusFS
-          cd ..
         fi
         
     - name: Run build setup

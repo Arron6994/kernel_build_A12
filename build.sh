@@ -13,7 +13,7 @@ ARCH="arm64"
 SUBARCH="arm64"
 
 # Paths
-KERNEL_DIR="$(pwd)/kernel"
+KERNEL_DIR="$(pwd)"
 TOOLCHAIN_DIR="$(pwd)/toolchain"
 OUT_DIR="$(pwd)/out"
 ANYKERNEL_DIR="$(pwd)/AnyKernel3"
@@ -101,13 +101,18 @@ setup_toolchain() {
 setup_kernel() {
     log_info "Setting up kernel source..."
 
-    if [ ! -d "$KERNEL_DIR" ]; then
-        log_error "Kernel source directory not found!"
-        log_info "Please place your Xiaomi 12 Pro kernel source in: $KERNEL_DIR"
-        log_info "You can clone it from: https://github.com/MiCode/Xiaomi_Kernel_OpenSource"
+    if [ ! -d "drivers" ] || [ ! -f "Makefile" ] || [ ! -d "arch" ]; then
+        log_error "Kernel source files not found in current directory!"
+        log_info "Expected files: drivers/, Makefile, arch/"
+        log_info "Current directory contents:"
+        ls -la
+        log_info "Please ensure you are running this script from a kernel source directory"
+        log_info "You can clone the kernel source from: https://github.com/MiCode/Xiaomi_Kernel_OpenSource"
         log_info "Branch: zeus-s-oss (for Android 12)"
         exit 1
     fi
+    
+    log_success "Kernel source verified at: $KERNEL_DIR"
 }
 
 # Function to setup KernelSU
