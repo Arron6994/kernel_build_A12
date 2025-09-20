@@ -75,7 +75,7 @@ jobs:
       run: |
         echo "Cloning kernel source..."
         if [ ! -d "kernel" ]; then
-          git clone --depth=1 -b ${{ env.KERNEL_BRANCH }} ${{ env.KERNEL_REPO }} kernel
+          git clone -b ${{ env.KERNEL_BRANCH }} ${{ env.KERNEL_REPO }} kernel
         fi
 
     - name: Verify drivers directory exists
