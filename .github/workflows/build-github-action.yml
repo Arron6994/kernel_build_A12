@@ -25,8 +25,8 @@ on:
         type: boolean
 
 env:
-  KERNEL_REPO: "https://github.com/MiCode/Xiaomi_Kernel_OpenSource"
-  KERNEL_BRANCH: "zeus-s-oss"
+  KERNEL_REPO: "https://github.com/Arron6994/kernel_build_A12"
+  KERNEL_BRANCH: "main"
   DEVICE_NAME: "zeus"
   ANDROID_VERSION: "12"
 
@@ -91,7 +91,7 @@ jobs:
         
         if [ ! -d "toolchain/gcc" ]; then
           cd toolchain  
-          git clone --depth=1 https://github.com/LineageOS/android_prebuilts_gcc_linux-x86_aarch64_aarch64-linux-android-4.9 gcc
+          git clone --depth=1 https://gitlab.com/vermouth/android_prebuilts_clang_host_linux-x86_clang-r536225.git gcc
           cd ..
         fi
         
