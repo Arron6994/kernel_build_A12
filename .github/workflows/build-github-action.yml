@@ -33,13 +33,13 @@ env:
 jobs:
   build:
     runs-on: ubuntu-22.04
-    
+
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
       with:
-        fetch-depth: 1
-        
+        fetch-depth: 0  # Full clone to avoid missing files or directories
+
     - name: Setup build environment
       run: |
         sudo apt update
@@ -59,42 +59,50 @@ jobs:
           libelf-dev \
           cpio \
           ccache
-          
+
     - name: Setup ccache
       uses: hendrikmuhs/ccache-action@v1.2
       with:
         key: zeus-kernel-build
         max-size: 10G
-        
+
     - name: Make scripts executable
       run: |
         chmod +x build.sh
         chmod +x scripts/setup.sh
-        
+
     - name: Setup kernel source
       run: |
         echo "Cloning kernel source..."
         if [ ! -d "kernel" ]; then
           git clone --depth=1 -b ${{ env.KERNEL_BRANCH }} ${{ env.KERNEL_REPO }} kernel
         fi
-        
+
+    - name: Verify drivers directory exists
+      run: |
+        if [ ! -d "kernel/drivers" ]; then
+          echo "ERROR: drivers/ directory not found in kernel source!"
+          ls -l kernel
+          exit 1
+        fi
+
     - name: Setup toolchain
       run: |
         echo "Setting up toolchain..."
         mkdir -p toolchain
-        
+
         if [ ! -d "toolchain/clang" ]; then
           cd toolchain
           git clone --depth=1 https://gitlab.com/vermouth/android_prebuilts_clang_host_linux-x86_clang-r536225.git clang
           cd ..
         fi
-        
+
         if [ ! -d "toolchain/gcc" ]; then
-          cd toolchain  
+          cd toolchain
           wget -q https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/+archive/refs/heads/android12-release.tar.gz -O gcc-arm64.tar.gz
           cd ..
         fi
-        
+
     - name: Setup KernelSU
       if: ${{ github.event.inputs.enable_kernelsu != 'false' }}
       run: |
@@ -104,7 +112,7 @@ jobs:
           git clone --depth=1 -b next https://github.com/rifsxd/KernelSU-Next KernelSU
           cd ..
         fi
-        
+
     - name: Setup SusFS
       if: ${{ github.event.inputs.enable_susfs != 'false' }}
       run: |
@@ -114,11 +122,11 @@ jobs:
           git clone --depth=1 https://github.com/sidex15/susfs4ksu-module SusFS
           cd ..
         fi
-        
+
     - name: Run build setup
       run: |
         ./build.sh --setup-only
-        
+
     - name: Upload build artifacts
       if: always()
       uses: actions/upload-artifact@v4
