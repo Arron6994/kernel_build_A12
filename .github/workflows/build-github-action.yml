@@ -91,7 +91,7 @@ jobs:
         
         if [ ! -d "toolchain/gcc" ]; then
           cd toolchain  
-          git clone --depth=1 https://gitlab.com/vermouth/android_prebuilts_clang_host_linux-x86_clang-r536225.git gcc
+          wget -q https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/+archive/refs/heads/android12-release.tar.gz -O gcc-arm64.tar.gz
           cd ..
         fi
         
