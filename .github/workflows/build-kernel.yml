@@ -1,7 +1,7 @@
 name: Android 12 5.10 Kernel + KernelSU-Next + AnyKernel3 Build
 
-  on:
-   workflow_dispatch:
+on:
+  workflow_dispatch:
     inputs:
       KERNEL_BRANCH:
         description: main Branch
@@ -17,7 +17,7 @@ env:
    DEFCONFIG: zeus_defconfig
 
 jobs:
-   build:
+  build:
     runs-on: ubuntu-latest
     steps:
       # Checkout source code repositories
