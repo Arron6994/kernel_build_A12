@@ -1,4 +1,4 @@
-  name: Android 12 5.10 Kernel + KernelSU-Next + AnyKernel3 Build
+name: Android 12 5.10 Kernel + KernelSU-Next + AnyKernel3 Build
 
   on:
    workflow_dispatch:
@@ -8,7 +8,7 @@
         required: true
         default: main
 
-  env:
+env:
    KERNEL_VERSION: 5.10
    ANDROID_VERSION: 12
    DEVICE_NAME: zeus
@@ -16,7 +16,7 @@
    CLANG_VERSION: r416183b
    DEFCONFIG: zeus_defconfig
 
-  jobs:
+jobs:
    build:
     runs-on: ubuntu-latest
     steps:
