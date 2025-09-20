@@ -85,7 +85,7 @@ jobs:
         
         if [ ! -d "toolchain/clang" ]; then
           cd toolchain
-          git clone --depth=1 https://github.com/crdroidandroid/android_prebuilts_clang_host_linux-x86_clang-r450784d clang
+          git clone --depth=1 https://gitlab.com/vermouth/android_prebuilts_clang_host_linux-x86_clang-r536225.git clang
           cd ..
         fi
         
