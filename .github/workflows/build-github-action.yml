@@ -2,7 +2,7 @@ name: Build Zeus Kernel with KernelSU and SusFS
 
 on:
   push:
-    branches: [ main, copilot/* ]
+    branches: [ main ]
     paths-ignore:
       - 'README.md'
       - 'docs/**'
@@ -80,7 +80,7 @@ jobs:
 
     - name: Verify drivers directory exists
       run: |
-        if [ ! -d "kernel/drivers" ]; then
+        if [ ! -d "drivers" ]; then
           echo "ERROR: drivers/ directory not found in kernel source!"
           ls -l kernel
           exit 1
