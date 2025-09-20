@@ -1,17 +1,26 @@
-name: arronkernel-5.10
+  name: Android 12 5.10 Kernel + KernelSU-Next + AnyKernel3 Build
 
-   env:
-   KERNEL_VERSION: 5.1
+  on:
+   workflow_dispatch:
+    inputs:
+      KERNEL_BRANCH:
+        description: main Branch
+        required: true
+        default: main
+
+  env:
+   KERNEL_VERSION: 5.10
    ANDROID_VERSION: 12
    DEVICE_NAME: zeus
    CCACHE_VERSION: 4.8.1
    CLANG_VERSION: r416183b
    DEFCONFIG: zeus_defconfig
-   jobs:
-  
+
+  jobs:
    build:
     runs-on: ubuntu-latest
     steps:
+      # Checkout source code repositories
       - name: Checkout kernel source
         uses: actions/checkout@v4
         with:
@@ -19,112 +28,87 @@ name: arronkernel-5.10
           ref: main
           path: kernel-source/
           submodules: recursive
+
       - name: Checkout KernelSU-Next
         uses: actions/checkout@v4
         with:
           repository: tiann/KernelSU
           path: kernelsu-source/
           ref: main
+
       - name: Checkout AnyKernel3
         uses: actions/checkout@v4
         with:
           repository: osm0sis/AnyKernel3
           path: anykernel3/
           ref: master
+
+      # Setup build environment and tools
       - name: Install required packages
-        run: >
+        run: |
           sudo apt update
-
           sudo apt install -y bc bison build-essential ccache curl flex \
-
-          g++-multilib gcc-multilib git gnupg gperf imagemagick
-          lib32ncurses5-dev \
-
+          g++-multilib gcc-multilib git gnupg gperf imagemagick lib32ncurses5-dev \
           lib32readline-dev lib32z1-dev libelf-dev liblz4-tool libncurses5 \
-
           libncurses5-dev libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop \
-
           pngcrush rsync schedtool squashfs-tools xsltproc zip zlib1g-dev \
-
           python2 python-is-python3
+
+      # Setup cache for faster builds
       - name: Setup ccache
         uses: hendrikmuhs/ccache-action@v1.2
         with:
           key: ${{ runner.os }}-ccache-${{ github.sha }}
           restore-keys: ${{ runner.os }}-ccache-
+
+      # Download Clang toolchain
       - name: Download Clang Toolchain
-        run: >
+        run: |
           mkdir -p toolchains/clang
-
           cd toolchains/clang
-
-          wget -q
-          https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/android12-release/clang-${{
-          env.CLANG_VERSION }}.tar.gz
-
+          wget -q https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/heads/android12-release/clang-${{ env.CLANG_VERSION }}.tar.gz
           tar -xzf clang-${{ env.CLANG_VERSION }}.tar.gz
-
           rm clang-${{ env.CLANG_VERSION }}.tar.gz
-
           echo "Clang toolchain downloaded successfully"
+          
+      # Download GCC toolchains
       - name: Download GCC Toolchains
-        run: >
+        run: |
           mkdir -p toolchains/gcc
-
           cd toolchains/gcc
-
-
+          
           # ARM64 GCC
-
           mkdir -p aarch64
-
           cd aarch64
-
-          wget -q
-          https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/+archive/refs/heads/android12-release.tar.gz
-          -O gcc-arm64.tar.gz
-
+          wget -q https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/+archive/refs/heads/android12-release.tar.gz -O gcc-arm64.tar.gz
           tar -xzf gcc-arm64.tar.gz
-
           rm gcc-arm64.tar.gz
-
           cd ..
-
-
+          
           # ARM32 GCC
-
           mkdir -p arm
-
           cd arm
-
-          wget -q
-          https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9/+archive/refs/heads/android12-release.tar.gz
-          -O gcc-arm.tar.gz
-
+          wget -q https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/arm/arm-linux-androideabi-4.9/+archive/refs/heads/android12-release.tar.gz -O gcc-arm.tar.gz
           tar -xzf gcc-arm.tar.gz
-
           rm gcc-arm.tar.gz
-
           cd ..
-
-
+          
           echo "GCC toolchains downloaded successfully"
+
+      # Integrate KernelSU into kernel source
       - name: Integrate KernelSU
-        run: >
+        run: |
           # Navigate to kernel source
-
           cd kernel-source
-
-
+          
           # Initialize KernelSU integration
+          curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -
 
-          curl -LSs
-          "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh"
-          | bash -
+      # Prepare kernel configuration
       - name: Prepare Kernel Configuration
         run: |
           cd kernel-source
-
+          
           # Make sure defconfig exists
           if [ ! -f "arch/arm64/configs/${{ env.DEFCONFIG }}" ]; then
             echo "Defconfig ${{ env.DEFCONFIG }} not found, using default"
@@ -134,48 +118,33 @@ name: arronkernel-5.10
             echo "Using $FIRST_DEFCONFIG instead"
             export DEFCONFIG=$FIRST_DEFCONFIG
           fi
-
+          
           # Setup kernel configuration
           make O=out ARCH=arm64 ${{ env.DEFCONFIG }}
-
+          
           # Enable KernelSU in the configuration
           scripts/config --file out/.config -e CONFIG_KSU
+
+      # Build the kernel
       - name: Build Kernel
-        run: >
+        run: |
           # Setup environment variables
-
           export ARCH=arm64
-
           export SUBARCH=arm64
-
           export CLANG_PATH=$GITHUB_WORKSPACE/toolchains/clang
-
           export PATH="$CLANG_PATH/bin:$PATH"
-
           export CLANG_TRIPLE=aarch64-linux-gnu-
-
-          export
-          CROSS_COMPILE=$GITHUB_WORKSPACE/toolchains/gcc/aarch64/bin/aarch64-linux-android-
-
-          export
-          CROSS_COMPILE_ARM32=$GITHUB_WORKSPACE/toolchains/gcc/arm/bin/arm-linux-androideabi-
-
+          export CROSS_COMPILE=$GITHUB_WORKSPACE/toolchains/gcc/aarch64/bin/aarch64-linux-android-
+          export CROSS_COMPILE_ARM32=$GITHUB_WORKSPACE/toolchains/gcc/arm/bin/arm-linux-androideabi-
           export KBUILD_BUILD_USER=Arron6994
-
           export KBUILD_BUILD_HOST=GitHub-Actions
-
           export USE_CCACHE=1
-
           export CCACHE_EXEC=$(which ccache)
-
-
+          
           # Navigate to kernel source
-
           cd kernel-source
-
-
+          
           # Build the kernel
-
           make -j$(nproc --all) O=out \
             ARCH=arm64 \
             CC=clang \
@@ -183,50 +152,36 @@ name: arronkernel-5.10
             CROSS_COMPILE=aarch64-linux-android- \
             CROSS_COMPILE_ARM32=arm-linux-androideabi- \
             2>&1 | tee build.log
-
+            
           # Check if kernel image was built successfully
-
           if [ -f out/arch/arm64/boot/Image.gz ]; then
             echo "Kernel built successfully!"
           else
             echo "Kernel build failed!"
             exit 1
           fi
+
+      # Package kernel with AnyKernel3
       - name: Package with AnyKernel3
-        run: >
+        run: |
           # Navigate to AnyKernel3 directory
-
           cd anykernel3
-
-
+          
           # Clean up AnyKernel3 template files
-
           rm -rf .git README.md
-
-
+          
           # Configure AnyKernel3 for device
-
-          sed -i "s/device.name1=.*/device.name1=${{ env.DEVICE_NAME }}/g"
-          anykernel.sh
-
-          sed -i "s/supported.versions=.*/supported.versions=${{
-          env.ANDROID_VERSION }}/g" anykernel.sh
-
-
+          sed -i "s/device.name1=.*/device.name1=${{ env.DEVICE_NAME }}/g" anykernel.sh
+          sed -i "s/supported.versions=.*/supported.versions=${{ env.ANDROID_VERSION }}/g" anykernel.sh
+          
           # Set proper device-specific settings
-
           cat > anykernel.sh << EOF
-
           # AnyKernel3 Ramdisk Mod Script
-
           # osm0sis @ xda-developers
-
-
+          
           ## AnyKernel setup
-
           # begin properties
-
-          properties() {
+          properties() { 
               kernel.string=KernelSU-${{ env.DEVICE_NAME }} ${{ env.KERNEL_VERSION }}
               do.devicecheck=1
               do.modules=0
@@ -236,71 +191,51 @@ name: arronkernel-5.10
               device.name1=${{ env.DEVICE_NAME }}
               supported.versions=${{ env.ANDROID_VERSION }}
           }
-
           # end properties
-
-
+          
           ## AnyKernel install
-
           # begin attributes
-
           attributes() {
             set_perm_recursive 0 0 755 644 \$ramdisk/*;
             set_perm_recursive 0 0 750 750 \$ramdisk/init* \$ramdisk/sbin;
           }
-
           # end attributes
-
-
+          
           ## AnyKernel install
-
           dump_boot;
-
-
+          
           # Begin ramdisk changes
-
-
+          
           # migrate from /overlay to /overlay.d to enable SAR Magisk
-
           if [ -d \$ramdisk/overlay ]; then
             mkdir -p \$ramdisk/overlay.d 2>/dev/null;
             for file in \$(find \$ramdisk/overlay -type f 2>/dev/null); do
               cp -fp \$file \$ramdisk/overlay.d/\$(basename \$file) 2>/dev/null;
             done;
           fi;
-
-
+          
           # end ramdisk changes
-
-
+          
           write_boot;
-
           ## end install
-
           EOF
-
-
+          
           # Copy kernel image to AnyKernel3 directory
-
           cp ../kernel-source/out/arch/arm64/boot/Image.gz ./
-
-
+          
           # Check if dtb/dtbo exists and copy if they do
-
           if [ -f ../kernel-source/out/arch/arm64/boot/dtbo.img ]; then
             cp ../kernel-source/out/arch/arm64/boot/dtbo.img ./
           fi
-
-
+          
           if [ -f ../kernel-source/out/arch/arm64/boot/dtb.img ]; then
             cp ../kernel-source/out/arch/arm64/boot/dtb.img ./
           fi
-
-
+          
           # Create zip package
+          zip -r9 ../KernelSU-${{ env.DEVICE_NAME }}-${{ env.KERNEL_VERSION }}.zip * -x .git README.md *placeholder
 
-          zip -r9 ../KernelSU-${{ env.DEVICE_NAME }}-${{ env.KERNEL_VERSION
-          }}.zip * -x .git README.md *placeholder
+      # Upload artifacts
       - name: Upload Build Artifacts
         uses: actions/upload-artifact@v4
         with:
