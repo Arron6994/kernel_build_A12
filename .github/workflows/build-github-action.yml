@@ -29,21 +29,24 @@ env:
   KERNEL_BRANCH: "main"
   DEVICE_NAME: "zeus"
   ANDROID_VERSION: "12"
+  CCACHE_DIR: "${{ github.workspace }}/.ccache"
+  ARTIFACT_DIR: "${{ github.workspace }}/out"
 
 jobs:
   build:
     runs-on: ubuntu-22.04
+    timeout-minutes: 120  # Set a timeout to prevent runaway jobs
 
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
       with:
-        fetch-depth: 0  # Full clone to avoid missing files or directories
+        fetch-depth: 0  # Full clone for accurate history
 
     - name: Setup build environment
       run: |
-        sudo apt update
-        sudo apt install -y \
+        apt-get update
+        apt-get install -y \
           build-essential \
           git \
           curl \
@@ -59,41 +62,65 @@ jobs:
           libelf-dev \
           cpio \
           ccache
+        python3 -m pip install --upgrade pip
+        pip3 install --user requests  # Example additional Python dependency
+      shell: bash
 
     - name: Setup ccache
       uses: hendrikmuhs/ccache-action@v1.2
       with:
-        key: zeus-kernel-build
+        key: zeus-kernel-build-${{ github.sha }}
+        restore-keys: |
+          zeus-kernel-build-
         max-size: 10G
+        prepend-path: /usr/lib/ccache  # Ensure ccache is in PATH
+
+    - name: Cache toolchain
+      id: cache-toolchain
+      uses: actions/cache@v4
+      with:
+        path: |
+          toolchain/clang
+          toolchain/gcc
+        key: toolchain-${{ runner.os }}-clang-r536225-gcc-aarch64-${{ hashFiles('toolchain/**') }}
+        restore-keys: |
+          toolchain-${{ runner.os }}-
 
     - name: Make scripts executable
       run: |
-        chmod +x build.sh
-        chmod +x scripts/setup.sh
+        chmod +x build.sh || { echo "build.sh not found"; exit 1; }
+        chmod +x scripts/setup.sh || { echo "scripts/setup.sh not found"; exit 1; }
+      shell: bash
 
     - name: Setup kernel source
       run: |
         echo "Cloning kernel source..."
         if [ ! -d "kernel" ]; then
-          git clone -b ${{ env.KERNEL_BRANCH }} ${{ env.KERNEL_REPO }} kernel
+          git clone -b ${{ env.KERNEL_BRANCH }} ${{ env.KERNEL_REPO }} kernel || { echo "Failed to clone kernel repository"; exit 1; }
         fi
+        cd kernel
+        git config --global --add safe.directory ${{ github.workspace }}/kernel
+        echo "Kernel source cloned successfully"
+      shell: bash
 
     - name: Setup toolchain
       run: |
         echo "Setting up toolchain..."
         mkdir -p toolchain
-
         if [ ! -d "toolchain/clang" ]; then
           cd toolchain
-          git clone --depth=1 https://gitlab.com/vermouth/android_prebuilts_clang_host_linux-x86_clang-r536225.git clang
+          git clone --depth=1 https://gitlab.com/vermouth/android_prebuilts_clang_host_linux-x86_clang-r536225.git clang || { echo "Failed to clone clang"; exit 1; }
           cd ..
         fi
-
         if [ ! -d "toolchain/gcc" ]; then
           cd toolchain
-          wget -q https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/+archive/refs/heads/android12-release.tar.gz -O gcc-arm64.tar.gz
+          wget -q https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/+archive/refs/heads/android12-release.tar.gz -O gcc-arm64.tar.gz || { echo "Failed to download gcc"; exit 1; }
+          tar -xzf gcc-arm64.tar.gz -C gcc || { echo "Failed to extract gcc"; exit 1; }
+          rm gcc-arm64.tar.gz
           cd ..
         fi
+        echo "Toolchain setup completed"
+      shell: bash
 
     - name: Setup KernelSU
       if: ${{ github.event.inputs.enable_kernelsu != 'false' }}
@@ -101,9 +128,11 @@ jobs:
         echo "Setting up KernelSU-Next..."
         if [ ! -d "kernel/KernelSU" ]; then
           cd kernel
-          git clone --depth=1 -b next https://github.com/rifsxd/KernelSU-Next KernelSU
+          git clone --depth=1 -b next https://github.com/rifsxd/KernelSU-Next KernelSU || { echo "Failed to clone KernelSU"; exit 1; }
           cd ..
         fi
+        echo "KernelSU setup completed"
+      shell: bash
 
     - name: Setup SusFS
       if: ${{ github.event.inputs.enable_susfs != 'false' }}
@@ -111,13 +140,36 @@ jobs:
         echo "Setting up SusFS..."
         if [ ! -d "kernel/SusFS" ]; then
           cd kernel
-          git clone --depth=1 https://github.com/sidex15/susfs4ksu-module SusFS
+          git clone --depth=1 https://github.com/sidex15/susfs4ksu-module SusFS || { echo "Failed to clone SusFS"; exit 1; }
           cd ..
         fi
+        echo "SusFS setup completed"
+      shell: bash
+
+    - name: Validate environment
+      run: |
+        echo "Validating environment..."
+        if [ ! -d "kernel" ]; then echo "Kernel source directory missing"; exit 1; fi
+        if [ ! -d "toolchain/clang" ]; then echo "Clang toolchain missing"; exit 1; fi
+        if [ ! -d "toolchain/gcc" ]; then echo "GCC toolchain missing"; exit 1; fi
+        if [ "${{ github.event.inputs.enable_kernelsu }}" != "false" ] && [ ! -d "kernel/KernelSU" ]; then echo "KernelSU directory missing"; exit 1; fi
+        if [ "${{ github.event.inputs.enable_susfs }}" != "false" ] && [ ! -d "kernel/SusFS" ]; then echo "SusFS directory missing"; exit 1; fi
+        echo "Environment validated successfully"
+      shell: bash
 
     - name: Run build setup
       run: |
-        ./build.sh --setup-only
+        echo "Running build setup..."
+        ./build.sh --setup-only 2>&1 | tee ${{ env.ARTIFACT_DIR }}/build_setup.log || { echo "Build setup failed"; exit 1; }
+        echo "Build setup completed"
+      shell: bash
+
+    - name: Build kernel
+      run: |
+        echo "Building kernel for ${{ env.DEVICE_NAME }} (Android ${{ env.ANDROID_VERSION }})..."
+        ./build.sh --device=${{ env.DEVICE_NAME }} --android-version=${{ env.ANDROID_VERSION }} 2>&1 | tee ${{ env.ARTIFACT_DIR }}/build.log || { echo "Kernel build failed"; exit 1; }
+        echo "Kernel build completed"
+      shell: bash
 
     - name: Upload build artifacts
       if: always()
@@ -125,7 +177,22 @@ jobs:
       with:
         name: zeus-kernel-build-${{ github.run_number }}
         path: |
-          out/*.zip
-          out/build.log
-          out/arch/arm64/boot/Image.gz
+          ${{ env.ARTIFACT_DIR }}/*.zip
+          ${{ env.ARTIFACT_DIR }}/build.log
+          ${{ env.ARTIFACT_DIR }}/build_setup.log
+          ${{ env.ARTIFACT_DIR }}/arch/arm64/boot/Image.gz
         retention-days: 30
+        if-no-files-found: warn  # Warn instead of fail if no files are found
+
+    - name: Notify on Discord
+      if: always()
+      uses: Ilshidur/action-discord@0.3.2
+      env:
+        DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+      with:
+        args: |
+          Zeus Kernel Build #${{ github.run_number }} for ${{ env.DEVICE_NAME }} (Android ${{ env.ANDROID_VERSION }}) 
+          Status: ${{ job.status }}
+          KernelSU: ${{ github.event.inputs.enable_kernelsu }}
+          SusFS: ${{ github.event.inputs.enable_susfs }}
+          Details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
