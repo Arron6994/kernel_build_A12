@@ -25,7 +25,7 @@ on:
         type: boolean
 
 env:
-  KERNEL_REPO: "https://github.com/Arron6994/kernel_build_A12"
+  KERNEL_REPO: "https://github.com/Arron6994/kernel_test"  # Update to your actual kernel source repo
   KERNEL_BRANCH: "main"
   DEVICE_NAME: "zeus"
   ANDROID_VERSION: "12"
@@ -45,8 +45,8 @@ jobs:
 
     - name: Setup build environment
       run: |
-        apt-get update
-        apt-get install -y \
+        sudo apt-get update
+        sudo apt-get install -y \
           build-essential \
           git \
           curl \
@@ -86,6 +86,12 @@ jobs:
         restore-keys: |
           toolchain-${{ runner.os }}-
 
+    - name: Create required directories
+      run: |
+        mkdir -p ${{ env.ARTIFACT_DIR }}
+        mkdir -p toolchain/gcc
+      shell: bash
+
     - name: Make scripts executable
       run: |
         chmod +x build.sh || { echo "build.sh not found"; exit 1; }
@@ -112,8 +118,9 @@ jobs:
           git clone --depth=1 https://gitlab.com/vermouth/android_prebuilts_clang_host_linux-x86_clang-r536225.git clang || { echo "Failed to clone clang"; exit 1; }
           cd ..
         fi
-        if [ ! -d "toolchain/gcc" ]; then
+        if [ ! -d "toolchain/gcc" ] || [ -z "$(ls -A toolchain/gcc)" ]; then
           cd toolchain
+          mkdir -p gcc
           wget -q https://android.googlesource.com/platform/prebuilts/gcc/linux-x86/aarch64/aarch64-linux-android-4.9/+archive/refs/heads/android12-release.tar.gz -O gcc-arm64.tar.gz || { echo "Failed to download gcc"; exit 1; }
           tar -xzf gcc-arm64.tar.gz -C gcc || { echo "Failed to extract gcc"; exit 1; }
           rm gcc-arm64.tar.gz
@@ -129,6 +136,8 @@ jobs:
         if [ ! -d "kernel/KernelSU" ]; then
           cd kernel
           git clone --depth=1 -b next https://github.com/rifsxd/KernelSU-Next KernelSU || { echo "Failed to clone KernelSU"; exit 1; }
+          # Apply KernelSU patches if needed
+          # echo "CONFIG_KSU=y" >> arch/arm64/configs/vendor/zeus_defconfig
           cd ..
         fi
         echo "KernelSU setup completed"
@@ -141,6 +150,8 @@ jobs:
         if [ ! -d "kernel/SusFS" ]; then
           cd kernel
           git clone --depth=1 https://github.com/sidex15/susfs4ksu-module SusFS || { echo "Failed to clone SusFS"; exit 1; }
+          # Apply SusFS patches if needed
+          # echo "CONFIG_SUSFS=y" >> arch/arm64/configs/vendor/zeus_defconfig
           cd ..
         fi
         echo "SusFS setup completed"
@@ -167,8 +178,25 @@ jobs:
     - name: Build kernel
       run: |
         echo "Building kernel for ${{ env.DEVICE_NAME }} (Android ${{ env.ANDROID_VERSION }})..."
-        ./build.sh --device=${{ env.DEVICE_NAME }} --android-version=${{ env.ANDROID_VERSION }} 2>&1 | tee ${{ env.ARTIFACT_DIR }}/build.log || { echo "Kernel build failed"; exit 1; }
+        export PATH="${{ github.workspace }}/toolchain/clang/bin:${{ github.workspace }}/toolchain/gcc/bin:$PATH"
+        ./build.sh --device=${{ env.DEVICE_NAME }} --android-version=${{ env.ANDROID_VERSION }} \
+          ${{ github.event.inputs.enable_kernelsu != 'false' && '--enable-kernelsu' || '' }} \
+          ${{ github.event.inputs.enable_susfs != 'false' && '--enable-susfs' || '' }} \
+          2>&1 | tee ${{ env.ARTIFACT_DIR }}/build.log || { echo "Kernel build failed"; exit 1; }
         echo "Kernel build completed"
+      shell: bash
+
+    - name: Check build results
+      run: |
+        if [ ! -f "${{ env.ARTIFACT_DIR }}/arch/arm64/boot/Image.gz" ]; then
+          echo "Build did not produce expected kernel image"
+          exit 1
+        fi
+        # Package the kernel if not already packaged by build.sh
+        if [ ! -f "${{ env.ARTIFACT_DIR }}/*.zip" ]; then
+          cd ${{ env.ARTIFACT_DIR }}
+          zip -r zeus-kernel-${{ github.run_number }}.zip arch/arm64/boot/Image.gz
+        fi
       shell: bash
 
     - name: Upload build artifacts
