@@ -81,14 +81,14 @@ setup_kernel_source() {
     fi
 
     log_info "Cloning Xiaomi 12 Pro kernel source..."
-    git clone --depth=1 -b zeus-s-oss https://github.com/Arron6994/kernel_build_A12.git kernel
+    git clone --depth=1 -b main https://github.com/Arron6994/kernel_build_A12.git kernel
 
     if [ $? -eq 0 ]; then
         log_success "Kernel source cloned successfully"
     else
         log_error "Failed to clone kernel source"
         log_info "Please manually clone the kernel source:"
-        log_info "git clone -b zeus-s-oss https://github.com/Arron6994/kernel_build_A12.git kernel"
+        log_info "git clone -b main https://github.com/Arron6994/kernel_build_A12.git kernel"
         exit 1
     fi
 }
