@@ -25,7 +25,7 @@ on:
         type: boolean
 
 env:
-  KERNEL_REPO: "https://github.com/Arron6994/kernel_test"  # Update to your actual kernel source repo
+  KERNEL_REPO: "https://github.com/Arron6994/kernel_build_A12"  # Update to your actual kernel source repo
   KERNEL_BRANCH: "main"
   DEVICE_NAME: "zeus"
   ANDROID_VERSION: "12"
