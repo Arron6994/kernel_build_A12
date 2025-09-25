@@ -136,7 +136,7 @@ jobs:
           echo "Setting up KernelSU-Next..."
           if [ ! -d "kernel/KernelSU" ]; then
             cd kernel
-            git clone --depth=1 -b next https://github.com/rifsxd/KernelSU-Next KernelSU || { echo "Failed to clone KernelSU"; exit 1; }
+            git clone --depth=1 -b next https://github.com/KernelSU-Next/KernelSU-Next KernelSU || { echo "Failed to clone KernelSU"; exit 1; }
             # Apply KernelSU patches if needed
             # echo "CONFIG_KSU=y" >> arch/arm64/configs/vendor/zeus_defconfig
             cd ..
