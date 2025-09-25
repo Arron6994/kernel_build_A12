@@ -84,7 +84,7 @@ setup_toolchain() {
     if [ ! -d "$TOOLCHAIN_DIR/clang" ]; then
         log_info "Downloading Clang toolchain..."
         cd "$TOOLCHAIN_DIR"
-        git clone --depth=1 https://github.com/crdroidandroid/android_prebuilts_clang_host_linux-x86_clang-r450784d clang
+        git clone --depth=1 https://gitlab.com/vermouth/android_prebuilts_clang_host_linux-x86_clang-r536225.git clang
         cd - > /dev/null
     fi
 
@@ -104,8 +104,8 @@ setup_kernel() {
     if [ ! -d "$KERNEL_DIR" ]; then
         log_error "Kernel source directory not found!"
         log_info "Please place your Xiaomi 12 Pro kernel source in: $KERNEL_DIR"
-        log_info "You can clone it from: https://github.com/MiCode/Xiaomi_Kernel_OpenSource"
-        log_info "Branch: zeus-s-oss (for Android 12)"
+        log_info "You can clone it from: https://github.com/Arron6994/kernel_build_A12"
+        log_info "Branch: main (for Android 12)"
         exit 1
     fi
 }
