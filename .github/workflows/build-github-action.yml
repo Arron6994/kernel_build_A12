@@ -16,12 +16,12 @@ on:
       enable_kernelsu:
         description: 'Enable KernelSU'
         required: false
-        default: 'true'
+        default: true
         type: boolean
       enable_susfs:
         description: 'Enable SusFS'
         required: false
-        default: 'true'
+        default: true
         type: boolean
 
 env:
