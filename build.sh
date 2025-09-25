@@ -24,7 +24,7 @@ CLANG_URL="https://android.googlesource.com/platform/prebuilts/clang/host/linux-
 
 # KernelSU Configuration
 KERNELSU_ENABLED=true
-KERNELSU_URL="https://github.com/rifsxd/KernelSU-Next"
+KERNELSU_URL="https://github.com/KernelSU-Next//KernelSU-Next"
 KERNELSU_BRANCH="next"
 
 # SusFS Configuration  
