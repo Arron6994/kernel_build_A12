@@ -251,7 +251,7 @@ setup_github_actions() {
 
     mkdir -p .github/workflows
 
-    cat > .github/workflows/build-kernel.yml << 'EOF'
+    cat > .github/workflows/build-github-action.yml << 'EOF'
 name: Build Zeus Kernel
 
 on:
